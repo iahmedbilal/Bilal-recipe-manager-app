@@ -3,7 +3,6 @@
 
   const STORAGE_KEY = "recipes";
 
-  // ---------- State ----------
   let recipes = [];
   let currentRecipeId = null;
 
@@ -14,7 +13,6 @@
     type: "all",
   };
 
-  // ---------- DOM refs ----------
   const views = {
     home: document.getElementById("homeView"),
     detail: document.getElementById("detailView"),
@@ -37,6 +35,9 @@
   const editRecipeBtn = document.getElementById("editRecipeBtn");
   const deleteRecipeBtn = document.getElementById("deleteRecipeBtn");
 
+  const exportPdfBtn = document.getElementById("exportPdfBtn");
+  const shareRecipeBtn = document.getElementById("shareRecipeBtn");
+
   const formTitle = document.getElementById("formTitle");
   const recipeForm = document.getElementById("recipeForm");
   const formErrors = document.getElementById("formErrors");
@@ -48,12 +49,12 @@
   const prepTimeInput = document.getElementById("prepTimeInput");
   const cookTimeInput = document.getElementById("cookTimeInput");
   const imageUrlInput = document.getElementById("imageUrlInput");
+  const videoUrlInput = document.getElementById("videoUrlInput"); // NEW
   const descriptionInput = document.getElementById("descriptionInput");
   const ingredientsInput = document.getElementById("ingredientsInput");
   const stepsInput = document.getElementById("stepsInput");
   const resetFormBtn = document.getElementById("resetFormBtn");
 
-  // ---------- Helpers for rating/reviews ----------
   function normalizeRecipe(recipe) {
     const normalizedType =
       recipe.type === "Veg" || recipe.type === "Non-Veg" ? recipe.type : "Veg";
@@ -65,11 +66,33 @@
       ratingCount:
         typeof recipe.ratingCount === "number" ? recipe.ratingCount : 0,
       rating: typeof recipe.rating === "number" ? recipe.rating : 0,
+      videoUrl: recipe.videoUrl || null,
     };
   }
 
   function normalizeRecipes(list) {
     return list.map(normalizeRecipe);
+  }
+
+  //  build embeddable YouTube URL from watch / short link
+  function getYouTubeEmbedUrl(rawUrl) {
+    if (!rawUrl) return null;
+    try {
+      const url = new URL(rawUrl);
+      const host = url.hostname.replace("www.", "");
+      let videoId = null;
+
+      if (host === "youtube.com" || host === "m.youtube.com") {
+        videoId = url.searchParams.get("v");
+      } else if (host === "youtu.be") {
+        videoId = url.pathname.slice(1);
+      }
+
+      if (!videoId) return null;
+      return "https://www.youtube.com/embed/" + videoId;
+    } catch (e) {
+      return null;
+    }
   }
 
   // ---------- Storage ----------
@@ -158,6 +181,7 @@
       difficulty: "Easy",
       type: "Non-Veg",
       imageUrl: "images/noodles.jpg",
+      videoUrl: `https://youtu.be/AthGc8rDtHc?si=dqWUBMjOqGleLDda`,
       createdAt: new Date().toISOString(),
     };
 
@@ -198,6 +222,7 @@
         difficulty: "Easy",
         type: "Veg",
         imageUrl: "images/pasta.jpg",
+        videoUrl: `https://youtu.be/l4PQzpYFm04?si=9BdqtsEfg2ZCZT0c`,
         createdAt: new Date().toISOString(),
       },
 
@@ -247,6 +272,7 @@
         difficulty: "Hard",
         type: "Non-Veg",
         imageUrl: "images/biryani.jpg",
+        videoUrl: `https://youtu.be/EiVoWp5b93s?si=Gbi2Miu707YCyPs8`,
         createdAt: new Date().toISOString(),
       },
 
@@ -280,6 +306,7 @@
         difficulty: "Easy",
         type: "Non-Veg",
         imageUrl: "images/omelette.jpg",
+        videoUrl: `https://youtu.be/RsKonQWs8z8?si=uilLtmN2MSQg4m_5`,
         createdAt: new Date().toISOString(),
       },
 
@@ -309,6 +336,7 @@
         type: "Veg",
         imageUrl:
           "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?auto=format&fit=crop&w=800&q=80",
+        videoUrl: `https://youtu.be/rre7unozEJk?si=lSLRw_xj2XDMHT5x`,
         createdAt: new Date().toISOString(),
       },
     ];
@@ -650,7 +678,43 @@
       reviewsBlock
     );
 
+    // NEW: Cooking Video section (if videoUrl set)
+    let videoSection = null;
+    if (recipe.videoUrl) {
+      videoSection = document.createElement("section");
+
+      const videoTitle = document.createElement("h3");
+      videoTitle.className = "detail-section-title";
+      videoTitle.textContent = "Cooking Video";
+
+      const embedUrl = getYouTubeEmbedUrl(recipe.videoUrl);
+
+      if (embedUrl) {
+        const iframe = document.createElement("iframe");
+        iframe.src = embedUrl;
+        iframe.width = "100%";
+        iframe.height = "260";
+        iframe.loading = "lazy";
+        iframe.style.border = "0";
+        iframe.allow =
+          "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+        iframe.allowFullscreen = true;
+        videoSection.append(videoTitle, iframe);
+      } else {
+        const link = document.createElement("a");
+        link.href = recipe.videoUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = "Watch cooking video";
+        videoSection.append(videoTitle, link);
+      }
+    }
+
     body.append(ingredientsSection, stepsSection, reviewSection);
+    if (videoSection) {
+      body.append(videoSection);
+    }
+
     detailContainer.append(header, body);
 
     showView("detail");
@@ -686,6 +750,147 @@
     openRecipeDetail(recipeId);
   }
 
+  // ---------- Export to PDF ----------
+  function exportCurrentRecipeAsPdf() {
+    if (!currentRecipeId) return;
+    const recipe = normalizeRecipe(
+      recipes.find((r) => r.id === currentRecipeId)
+    );
+    if (!recipe) return;
+
+    const ingredientsHtml = (recipe.ingredients || [])
+      .map((i) => `<li>${i}</li>`)
+      .join("");
+    const stepsHtml = (recipe.steps || []).map((s) => `<li>${s}</li>`).join("");
+
+    const win = window.open("", "_blank");
+    if (!win) {
+      alert("Please allow pop-ups to export the recipe.");
+      return;
+    }
+
+    const doc = win.document;
+    doc.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>${recipe.title} - Recipe</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 24px;
+      color: #111827;
+      line-height: 1.5;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 1.8rem;
+    }
+    .meta {
+      margin: 8px 0 16px;
+      font-size: 0.9rem;
+      color: #4b5563;
+    }
+    h2 {
+      font-size: 1.1rem;
+      margin-top: 18px;
+      margin-bottom: 6px;
+    }
+    ul, ol {
+      margin-top: 4px;
+      padding-left: 18px;
+    }
+    .section {
+      margin-bottom: 12px;
+    }
+    .rating {
+      margin-top: 4px;
+      font-size: 0.9rem;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <h1>${recipe.title}</h1>
+  <div class="meta">
+    Type: ${recipe.type} · Difficulty: ${recipe.difficulty} · Prep: ${
+      recipe.prepTime
+    } mins · Cook: ${recipe.cookTime} mins
+  </div>
+  <div class="section">
+    <h2>Description</h2>
+    <p>${recipe.description}</p>
+  </div>
+  <div class="section">
+    <h2>Ingredients</h2>
+    <ul>${ingredientsHtml}</ul>
+  </div>
+  <div class="section">
+    <h2>Steps</h2>
+    <ol>${stepsHtml}</ol>
+  </div>
+  <div class="section rating">
+    ${
+      recipe.ratingCount > 0
+        ? `Average rating: ${recipe.rating.toFixed(1)} / 5 (${
+            recipe.ratingCount
+          } rating${recipe.ratingCount > 1 ? "s" : ""})`
+        : "No ratings yet."
+    }
+  </div>
+</body>
+</html>`);
+
+    doc.close();
+    win.focus();
+    win.print(); // user can choose "Save as PDF"
+  }
+
+  // ---------- Share recipe ----------
+  function shareCurrentRecipe() {
+    if (!currentRecipeId) return;
+    const recipe = normalizeRecipe(
+      recipes.find((r) => r.id === currentRecipeId)
+    );
+    if (!recipe) return;
+
+    const baseText = `${recipe.title}
+
+${recipe.description}
+
+Prep: ${recipe.prepTime} mins · Cook: ${recipe.cookTime} mins`;
+
+    const shareData = {
+      title: recipe.title,
+      text: baseText,
+      url: window.location.href,
+    };
+
+    if (navigator.share) {
+      navigator.share(shareData).catch(() => {
+        // user cancelled share – silently ignore
+      });
+    } else {
+      const fallbackText = `${baseText}
+
+${window.location.href}`;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard
+          .writeText(fallbackText)
+          .then(() => {
+            alert(
+              "Recipe details copied to clipboard. You can paste and share it anywhere!"
+            );
+          })
+          .catch(() => {
+            alert("Here is the recipe you can share:\n\n" + fallbackText);
+          });
+      } else {
+        alert("Here is the recipe you can share:\n\n" + fallbackText);
+      }
+    }
+  }
+
   // ---------- Form ----------
   function openAddForm() {
     formTitle.textContent = "Add Recipe";
@@ -696,6 +901,7 @@
     prepTimeInput.value = "";
     cookTimeInput.value = "";
     imageUrlInput.value = "";
+    videoUrlInput.value = ""; // NEW
     descriptionInput.value = "";
     ingredientsInput.value = "";
     stepsInput.value = "";
@@ -715,6 +921,7 @@
     prepTimeInput.value = recipe.prepTime;
     cookTimeInput.value = recipe.cookTime;
     imageUrlInput.value = recipe.imageUrl || "";
+    videoUrlInput.value = recipe.videoUrl || ""; // NEW
     descriptionInput.value = recipe.description;
     ingredientsInput.value = recipe.ingredients.join("\n");
     stepsInput.value = recipe.steps.join("\n");
@@ -776,6 +983,7 @@
       prepTime: Number(prepTimeInput.value),
       cookTime: Number(cookTimeInput.value),
       imageUrl: imageUrlInput.value.trim() || null,
+      videoUrl: videoUrlInput.value.trim() || null, // NEW
       ingredients,
       steps,
     };
@@ -836,6 +1044,13 @@
 
     editRecipeBtn.addEventListener("click", openEditForm);
     deleteRecipeBtn.addEventListener("click", deleteCurrentRecipe);
+
+    if (exportPdfBtn) {
+      exportPdfBtn.addEventListener("click", exportCurrentRecipeAsPdf);
+    }
+    if (shareRecipeBtn) {
+      shareRecipeBtn.addEventListener("click", shareCurrentRecipe);
+    }
 
     searchInput.addEventListener("input", (e) => {
       filters.search = e.target.value.trim();

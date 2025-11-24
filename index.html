@@ -79,6 +79,12 @@
         <div class="detail-actions">
           <button id="editRecipeBtn" class="btn btn-secondary">✏️ Edit</button>
           <button id="deleteRecipeBtn" class="btn btn-danger">🗑 Delete</button>
+
+          <!-- NEW: Export & Share buttons (reuse existing button styles) -->
+          <button id="exportPdfBtn" class="btn btn-secondary">📄 Export</button>
+          <button id="shareRecipeBtn" class="btn btn-secondary">
+            📤 Share
+          </button>
         </div>
       </section>
 
@@ -151,6 +157,18 @@
                 type="url"
                 id="imageUrlInput"
                 placeholder="https://example.com/my-dish.jpg"
+              />
+            </div>
+
+            <!-- NEW: Cooking video URL field (optional) -->
+            <div class="field-group full-width">
+              <label for="videoUrlInput"
+                >Cooking video URL (YouTube, optional)</label
+              >
+              <input
+                type="url"
+                id="videoUrlInput"
+                placeholder="https://www.youtube.com/watch?v=..."
               />
             </div>
 

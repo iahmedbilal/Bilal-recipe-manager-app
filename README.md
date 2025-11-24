@@ -3,7 +3,7 @@
 A simple and responsive recipe manager built with **HTML, CSS, and JavaScript**.  
 Users can add, view, edit, delete, and search recipes. All data is stored in **localStorage**.
 
-## 🚀 Live Demo
+## 🚀 Website Live 
 https://iahmedbilal.github.io/Bilal-recipe-manager-app/
 
 ## 🧩 Features
